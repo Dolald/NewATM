@@ -40,7 +40,7 @@ func (a *ATM) ChangeLanguage(enterNumberOfLanguage int) {
 }
 
 func (a *ATM) CheckBalance() {
-	fmt.Println("Ваш балансs:", a.Clients[a.clientID].balance)
+	fmt.Println("Ваш баланс:", a.Clients[a.clientID].balance)
 }
 
 func (a *ATM) Deposit(deposit int) {
@@ -52,28 +52,6 @@ func (a *ATM) Deposit(deposit int) {
 	}
 
 	fmt.Println("Идёт распознавание купюр\nВы успешно пополнили:", deposit)
-}
-
-func (a *ATM) CheckWithdrawAmount(withdrawal int) bool {
-	switch {
-	case withdrawal%100 != 0:
-		fmt.Println("Банкомата не выдаёт такие суммы, выберите другую сумму")
-		return false
-	case withdrawal > a.Clients[a.clientID].balance:
-		fmt.Println("У вас недостаточно денег для снятия такой суммы")
-		return false
-	case withdrawal+a.Clients[a.clientID].amountOfWithdrawnMoney > 300000:
-		fmt.Println("Максимальная сумма снятия с карты в день - 300 000")
-		return false
-	}
-
-	if _, ex := a.banknoteToCount[100]; !ex { // if нет 100, идёт проверка вводимого числа на кратность 100, но не 500 или вывод < 500
-		if withdrawal%100 == 0 && withdrawal%500 != 0 || withdrawal < 500 {
-			fmt.Println("Введите другую сумму")
-			return false
-		}
-	}
-	return true
 }
 
 func (a *ATM) DisplayAvalibleBanknotes() string {
@@ -98,41 +76,10 @@ func (a *ATM) CheckPinForWithdraw(pinCode int) bool {
 	return true
 }
 
-func (a *ATM) Withdraw() {
-	var withdrawal, chousenBanknote, сhoosingChange, estimatedWithdrawal, countBanknotes, pinCode int
-	banknotesStorage := make([]int, 0)
-	estimatedWithdrawalAmount := make(map[int]int) //преполагаемая сумма вывода
-
-	displayBanknotes := a.DisplayAvalibleBanknotes()
-	fmt.Scan(&chousenBanknote)
-
-	if !a.CheckPinForWithdraw(pinCode) {
-		return
-	}
-	//
-	if chousenBanknote != 1 { //если выбор банкноты один из предложенных
-		if !a.CheckWithdrawAmount(chousenBanknote) {
-			return
-		}
-		a.banknoteToCount[chousenBanknote] -= 1
-		a.balance -= chousenBanknote
-		fmt.Println("Вы успешно сняли:", chousenBanknote)
-		a.checkBanknotesAmount()
-		return
-	}
-	//
-
-	fmt.Println("Введите сумму для снятия наличных\nВведите сумму до 300000\nДоступны номиналы купюр:", displayBanknotes)
-	fmt.Scan(&withdrawal)
-	withdrawn := withdrawal
-	if !a.CheckWithdrawAmount(withdrawal) {
-		return
-	}
-
-	displayBanknotes = "" // переиспользуем переменную
-	//
+func (a *ATM) DisplayAvalibleExchange(withdrawal, сhoosingChange int, displayBanknotes string) int {
 	if withdrawal >= 500 && withdrawal <= 120000 {
 		fmt.Println("Купюры какого размена желаете ?\n1 - Всё равно") //
+
 		for banknote := range a.banknoteToCount {
 			if withdrawal >= banknote && withdrawal < 6000 { // 6000, т.к. это максимальная сумма по минимальным купюром в данном кейсе
 				displayBanknotes += strconv.Itoa(banknote) + " "
@@ -142,49 +89,115 @@ func (a *ATM) Withdraw() {
 		}
 		fmt.Println(displayBanknotes)
 		fmt.Scan(&сhoosingChange)
-
-	} else if withdrawal < 500 || withdrawal > 120000 || сhoosingChange == 1 {
+	} else {
 		сhoosingChange = 5000
 	}
-	//
-	//
+	return сhoosingChange
+}
+
+func (a *ATM) CheckEstimateWithdrowalAmount() {
+
+}
+
+func (a *ATM) CheckWithdrawAmount(withdrawal, ATMAmountForCheck int) bool {
+	switch {
+	case withdrawal%100 != 0:
+		fmt.Println("Банкомата не выдаёт такие суммы, выберите другую сумму")
+		return false
+	case withdrawal > a.Clients[a.clientID].balance:
+		fmt.Println("У вас недостаточно денег для снятия такой суммы")
+		return false
+	case withdrawal+a.Clients[a.clientID].amountOfWithdrawnMoney > 300000:
+		fmt.Println("Максимальная сумма снятия с карты в день - 300 000")
+		return false
+	case withdrawal > ATMAmountForCheck:
+		fmt.Println("Выберите сумму поменьше")
+		return false
+	}
+
+	if _, ex := a.banknoteToCount[100]; !ex { // if нет 100, идёт проверка вводимого числа на кратность 100, но не 500 или вывод < 500
+		if withdrawal%100 == 0 && withdrawal%500 != 0 || withdrawal < 500 {
+			fmt.Println("Введите другую сумму")
+			return false
+		}
+	}
+	return true
+}
+
+func (a *ATM) WithdrawOneBanknote(chousenBanknote int) {
+	totalAmountOneBanknoteMoney := chousenBanknote * a.banknoteToCount[chousenBanknote]
+	if !a.CheckWithdrawAmount(chousenBanknote, totalAmountOneBanknoteMoney) {
+		return
+	}
+	a.banknoteToCount[chousenBanknote] -= 1
+	a.balance -= chousenBanknote
+	if v, ex := a.Clients[a.clientID]; ex {
+		v.balance -= chousenBanknote
+		a.Clients[a.clientID] = v
+	}
+	fmt.Println("Вы успешно сняли:", chousenBanknote)
+}
+
+func (a *ATM) Withdraw() {
+	var withdrawal, chousenBanknote, сhoosingChange, ATMAmountForCheck, countBanknotes, pinCode int
+	banknotesStorage := make([]int, 0)
+	estimatedWithdrawalAmount := make(map[int]int) //преполагаемая сумма вывода
+
+	displayBanknotes := a.DisplayAvalibleBanknotes()
+	fmt.Scan(&chousenBanknote)
+
+	if !a.CheckPinForWithdraw(pinCode) {
+		return
+	}
+
+	if chousenBanknote != 1 { //если выбор банкноты один из предложенных
+		a.WithdrawOneBanknote(chousenBanknote)
+		return
+	}
+
+	fmt.Println("Введите сумму для снятия наличных\nВведите сумму до 300000\nДоступны номиналы купюр:", displayBanknotes)
+	fmt.Scan(&withdrawal)
+	estimatedWithdrawal := withdrawal
+
+	displayBanknotes = "" // переиспользуем переменную
+
+	сhoosingChange = a.DisplayAvalibleExchange(withdrawal, сhoosingChange, displayBanknotes)
+
 	for banknote, ammount := range a.banknoteToCount { // сумирование предполагаемого вывода включительно до выбранной банкноты
 		banknotesStorage = append(banknotesStorage, banknote) //заполняем массив банкнотами
 		estimatedWithdrawalAmount[banknote] = ammount
+
 		if banknote <= сhoosingChange {
-			estimatedWithdrawal += banknote * ammount
+			ATMAmountForCheck += banknote * ammount
 		}
 	}
-	//
-	if withdrawal > estimatedWithdrawal {
-		fmt.Println("Выберите сумму поменьше")
+
+	if !a.CheckWithdrawAmount(withdrawal, ATMAmountForCheck) {
 		return
 	}
 
 	sort.Sort(sort.Reverse(sort.IntSlice(banknotesStorage)))
 
-	for _, banknote := range banknotesStorage { // процесс снятия денег с банкомата
-		if withdrawal != 0 && banknote <= сhoosingChange {
-			estimatedWithdrawalAmount, withdrawal = subtractionATMBanknotes(banknote, withdrawal, estimatedWithdrawalAmount)
-		}
-	}
+	estimatedWithdrawalAmount, withdrawal = subtractionATMBanknotes(banknotesStorage, сhoosingChange, withdrawal, estimatedWithdrawalAmount)
 
 	if !a.CheckWithdrawBanknotes(estimatedWithdrawalAmount, сhoosingChange, countBanknotes) {
 		return
 	}
 
+	a.UpdateATMOptions(estimatedWithdrawalAmount, estimatedWithdrawal)
+	a.UpdateClientOptions(estimatedWithdrawal)
+	fmt.Println("Выдача купюр. . .\nВы успешно сняли", estimatedWithdrawal, a.Clients[a.clientID].amountOfWithdrawnMoney, a.Clients[a.clientID].balance)
+}
+
+func (a *ATM) UpdateATMOptions(estimatedWithdrawalAmount map[int]int, estimatedWithdrawal int) {
 	for banknote, v := range estimatedWithdrawalAmount { //окончательная передача информации о выводе денег
 		a.banknoteToCount[banknote] = v
 	}
 
-	a.balance -= withdrawn // обновляем баланс банкомата
-	a.UpdateClientOptions(withdrawn)
-	fmt.Println("Выдача купюр. . .\nВы успешно сняли", withdrawn)
-
-	fmt.Println(a.Clients[a.clientID].amountOfWithdrawnMoney, a.Clients[a.clientID].balance)
+	a.balance -= estimatedWithdrawal // обновляем баланс банкомата
 }
 
-func (a *ATM) CheckWithdrawBanknotes(estimatedWithdrawalAmount map[int]int, сhoosingChange int, countBanknotes int) bool {
+func (a *ATM) CheckWithdrawBanknotes(estimatedWithdrawalAmount map[int]int, сhoosingChange, countBanknotes int) bool {
 	for banknote, v := range estimatedWithdrawalAmount { //  проверка количества снимаемых банкнот
 		if banknote <= сhoosingChange {
 			countBanknotes += a.banknoteToCount[banknote] - v
@@ -197,10 +210,10 @@ func (a *ATM) CheckWithdrawBanknotes(estimatedWithdrawalAmount map[int]int, сho
 	return true
 }
 
-func (a *ATM) UpdateClientOptions(withdrawn int) {
+func (a *ATM) UpdateClientOptions(estimatedWithdrawal int) {
 	if v, ok := a.Clients[a.clientID]; ok {
-		v.amountOfWithdrawnMoney += withdrawn
-		v.balance -= withdrawn
+		v.amountOfWithdrawnMoney += estimatedWithdrawal
+		v.balance -= estimatedWithdrawal
 		a.Clients[a.clientID] = v
 	}
 }
@@ -220,15 +233,20 @@ func (a *ATM) checkBanknotesAmount() bool {
 	return true
 }
 
-func subtractionATMBanknotes(banknote int, withdrawal int, estimatedWithdrawalAmount map[int]int) (map[int]int, int) {
-	tempEstimatedWithdrawalAmount := estimatedWithdrawalAmount[banknote]
-	estimatedWithdrawalAmount[banknote] -= withdrawal / banknote
+func subtractionATMBanknotes(banknotesStorage []int, withdrawal, сhoosingChange int, estimatedWithdrawalAmount map[int]int) (map[int]int, int) {
+	for _, banknote := range banknotesStorage { // процесс снятия денег с банкомата
+		if withdrawal != 0 && banknote <= сhoosingChange {
 
-	if estimatedWithdrawalAmount[banknote] < 0 {
-		estimatedWithdrawalAmount[banknote] = 0
-	}
-	if withdrawal/banknote != 0 {
-		withdrawal -= (tempEstimatedWithdrawalAmount - estimatedWithdrawalAmount[banknote]) * banknote
+			tempEstimatedWithdrawalAmount := estimatedWithdrawalAmount[banknote]
+			estimatedWithdrawalAmount[banknote] -= withdrawal / banknote
+
+			if estimatedWithdrawalAmount[banknote] < 0 {
+				estimatedWithdrawalAmount[banknote] = 0
+			}
+			if withdrawal/banknote != 0 {
+				withdrawal -= (tempEstimatedWithdrawalAmount - estimatedWithdrawalAmount[banknote]) * banknote
+			}
+		}
 	}
 	return estimatedWithdrawalAmount, withdrawal
 }
@@ -241,6 +259,9 @@ func (a *ATM) actionsOfATM() {
 
 	case 1:
 		a.Withdraw()
+		if !a.checkBanknotesAmount() {
+			return
+		}
 		getBack()
 		a.actionsOfATM()
 
@@ -308,7 +329,7 @@ func (a *ATM) theFirstEntering() {
 			}
 		}
 
-		fmt.Println("Добро пожаловать ʕ ᵔᴥᵔ ʔ,", a.Clients[a.clientID].Name, "(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧✧✧✧✧✧✧")
+		fmt.Println("Добро пожаловать ʕ ᵔᴥᵔ ʔ,", a.Clients[a.clientID].Name, "(ﾉ◕ヮ◕)ﾉ*:･ﾟ✧✧✧")
 		a.actionsOfATM()
 
 	case 2:

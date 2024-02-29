@@ -197,7 +197,13 @@ func (a *ATM) Withdraw() {
 
 	sort.Sort(sort.Reverse(sort.IntSlice(banknotesStorage)))
 
-	estimatedWithdrawalBanknotes := map[int]int{100: a.banknoteToCount[100], 500: a.banknoteToCount[500], 1000: a.banknoteToCount[1000], 2000: a.banknoteToCount[2000], 5000: a.banknoteToCount[5000]}
+	estimatedWithdrawalBanknotes := map[int]int{
+		100:  a.banknoteToCount[100],
+		500:  a.banknoteToCount[500],
+		1000: a.banknoteToCount[1000],
+		2000: a.banknoteToCount[2000],
+		5000: a.banknoteToCount[5000],
+	}
 
 	estimatedWithdrawalBanknotes, withdrawal = WithdrawMoneyFromATM(banknotesStorage, сhoosingExchange, withdrawal, estimatedWithdrawalBanknotes)
 
